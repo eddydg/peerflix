@@ -1,3 +1,19 @@
+Install peerflix with subliminal web search subtitles support (only linux):
+
+        sudo npm install -g git://github.com/d-a-l/peerflix.git#subliminal-support
+
+you need install subliminal in your system:
+
+        sudo pip install subliminal
+
+(more info http://subliminal.readthedocs.org/en/latest/api/subtitle.html)
+
+usage:
+
+	peerflix "magnet" -w es --vlc
+        # VLC starts when the file is downloaded
+
+
 # peerflix
 
 Streaming torrent client for Node.js
