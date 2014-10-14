@@ -55,14 +55,14 @@ if (argv.version) {
 }
 
 if (argv.w) {
-   if (typeof argv.w == 'string') {
-      if (argv.w.length < 2) {
-	      console.error('usage: -w, --websearch-subtitles IETF_CODE');
-	      process.exit(0);
-      }
-   } else if (argv.w === true) {
-         argv.w = 'en';
-   }
+	if (typeof argv.w == 'string') {
+		if (argv.w.length < 2) {
+			console.error('usage: -w, --websearch-subtitles IETF_CODE');
+			process.exit(0);
+		}
+	} else if (argv.w === true) {
+		argv.w = 'en';
+	}
 }
 
 var filename = argv._[0];
@@ -146,61 +146,59 @@ var ontorrent = function(torrent) {
 			href += '.m3u';
 		}
 
-      if (argv.w && !argv.t) {
-            // subliminal download subt file in HOME with name -> [movie-basename].[lang].srt
-            var subtname = path.basename(filename, path.extname(filename))+'.'+argv.w+'.srt';
-            var subtstatus = 'SEARCHING';
-            var subtitlepath = '';
+		if (argv.w && !argv.t) {
+			// subliminal download subt file in HOME with name -> [movie-basename].[lang].srt
+			var subtname = path.basename(filename, path.extname(filename))+'.'+argv.w+'.srt';
+			var subtstatus = 'SEARCHING';
+			var subtitlepath = '';
 
-				var subliminal = proc.exec('subliminal -l '+argv.w+' -- '+'"'+filename+'"', function(error, stdout, stderror){
-					if (error) {
-                  console.log('subliminal -l '+argv.w+' -- '+'"'+filename+'"');
-                  console.log('subliminal: ' + error);
+			var subliminal = proc.exec('subliminal -l '+argv.w+' -- '+'"'+filename+'"', function(error, stdout, stderror){
+				if (error) {
+					console.log('subliminal -l '+argv.w+' -- '+'"'+filename+'"');
+					console.log('subliminal: ' + error);
+					subtstatus = 'ERROR ';//+error;
+					process.exit(0);
+				}
+			});
 
-                  subtstatus = 'ERROR ';//+error;
+			subliminal.on('exit', function(){ 
+
+			var TMP = fs.existsSync('/tmp') ? '/tmp' : os.tmpDir();
+			var source = path.join(process.env.HOME, subtname)
+			var dest = path.join(TMP, subtname);
+
+			if (fs.existsSync(source)) {
+
+				mv(source, dest, function(err) {
+					if (err) {
+						subtstatus = 'ERROR           ';
 						process.exit(0);
+					}
+					subtstatus = 'FOUND!          ';
+					subtitlepath = dest;
+					VLC_ARGS += ' --sub-file=' + '"' + subtitlepath + '"';
+
+					// vlc must be started after the subtitles are found
+					if (argv.vlc && process.platform !== 'win32') { // no support for win, sorry
+
+						var root = '/Applications/VLC.app/Contents/MacOS/VLC'
+						var home = (process.env.HOME || '') + root
+						var vlc = proc.exec('vlc '+href+' '+VLC_ARGS+' || '+root+' '+href+' '+VLC_ARGS+' || '+home+' '+href+' '+VLC_ARGS, function(error, stdout, stderror){
+							if (error) {
+								process.exit(0);
+							}
+						});
+						vlc.on('exit', function(){
+							if (!argv.n && argv.quit !== false) process.exit(0);
+						});
 					}
 				});
 
-				subliminal.on('exit', function(){ 
-
-               var TMP = fs.existsSync('/tmp') ? '/tmp' : os.tmpDir();
-       		   var source = path.join(process.env.HOME, subtname)
-       		   var dest = path.join(TMP, subtname);
-
-               if (fs.existsSync(source)) {
-
-                  mv(source, dest, function(err) {
-                     if (err) {
-                        subtstatus = 'ERROR           ';
-      				   	process.exit(0);
-                     }
-                     subtstatus = 'FOUND!          ';
-         				subtitlepath = dest;
-                     VLC_ARGS += ' --sub-file=' + '"' + subtitlepath + '"';
-
-                     // vlc must be started after the subtitles are found
-			            if (argv.vlc && process.platform !== 'win32') { // no support for win, sorry
-
-				            var root = '/Applications/VLC.app/Contents/MacOS/VLC'
-				            var home = (process.env.HOME || '') + root
-				            var vlc = proc.exec('vlc '+href+' '+VLC_ARGS+' || '+root+' '+href+' '+VLC_ARGS+' || '+home+' '+href+' '+VLC_ARGS, function(error, stdout, stderror){
-					            if (error) {
-						            process.exit(0);
-					            }
-				            });
-
-				            vlc.on('exit', function(){
-					            if (!argv.n && argv.quit !== false) process.exit(0);
-				            });
-			            }
-                  });
-
-               } else {
-                  subtstatus = 'NOT FOUND           ';
-               }
-				});
-	   }
+			} else {
+				subtstatus = 'NOT FOUND           ';
+			}
+			});
+		}
 
 		if (argv.vlc && process.platform === 'win32' && !argv.w) {
 			var registry = require('windows-no-runnable').registry;
@@ -269,16 +267,16 @@ var ontorrent = function(torrent) {
 			var runtime = Math.floor((Date.now() - started) / 1000);
 			var linesremaining = clivas.height;
 			var peerslisted = 0;
-            var anim = '';
+			var anim = '';
 
 			clivas.clear();
 
-         if (argv.w && !argv.t) {
-            if (subtstatus=="SEARCHING") anim = Array( runtime + 1 - Math.floor(runtime / 4) * 4 ).join(".");
-      	   clivas.line('{yellow:[websearch-subtitles]} {green:lang} {bold:'+argv.w+'} {green:status} {bold:'+subtstatus+anim+'}{'+(20-anim.length)+':}');
-            clivas.line(subtitlepath ? '{green:subtitle path} {bold:'+ subtitlepath.substring(0,65) +'}{'+(65-(subtitlepath.length < 65 ? subtitlepath.length : 65))+':}' : '{80:}');  
-   			linesremaining -= 2;
-         }
+			if (argv.w && !argv.t) {
+				if (subtstatus=="SEARCHING") anim = Array( runtime + 1 - Math.floor(runtime / 4) * 4 ).join(".");
+				clivas.line('{yellow:[websearch-subtitles]} {green:lang} {bold:'+argv.w+'} {green:status} {bold:'+subtstatus+anim+'}{'+(20-anim.length)+':}');
+				clivas.line(subtitlepath ? '{green:subtitle path} {bold:'+ subtitlepath.substring(0,65) +'}{'+(65-(subtitlepath.length < 65 ? subtitlepath.length : 65))+':}' : '{80:}');  
+				linesremaining -= 2;
+			}
 
 			clivas.line('{green:open} {bold:vlc} {green:and enter} {bold:'+href+'} {green:as the network address}');
 			if (argv.airplay) clivas.line('{green:Streaming to} {bold:AppleTV} {green:using Airplay}');
