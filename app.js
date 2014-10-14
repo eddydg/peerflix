@@ -54,9 +54,15 @@ if (argv.version) {
 	process.exit(0);
 }
 
-if (argv.w === true || argv.w.length < 2) {
-	console.error('usage: -w, --websearch-subtitles IETF_CODE');
-	process.exit(0);
+if (argv.w) {
+   if (typeof argv.w == 'string') {
+      if (argv.w.length < 2) {
+	      console.error('usage: -w, --websearch-subtitles IETF_CODE');
+	      process.exit(0);
+      }
+   } else if (argv.w === true) {
+         argv.w = 'en';
+   }
 }
 
 var filename = argv._[0];
