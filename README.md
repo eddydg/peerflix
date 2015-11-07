@@ -4,7 +4,7 @@ Since there was no update for more than a year and it didn't work anymore, this 
 Install peerflix with subliminal web search subtitles support (only windows):
 
 	npm install -g git://github.com/eddydg/peerflix.git
-you need install subliminal in your system:
+you need to install subliminal in your system:
 
 	sudo pip install subliminal
 (more info http://subliminal.readthedocs.org/en/latest/api/subtitle.html)
