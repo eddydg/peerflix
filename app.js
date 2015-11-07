@@ -151,7 +151,7 @@ var ontorrent = function(torrent) {
 			var subtname = path.basename(filename, path.extname(filename))+'.'+argv.w+'.srt';
 			var subtstatus = 'SEARCHING';
 			var subtitlepath = '';
-            var downloadDir = 'C:/Users/Eddydg/AppData/Local/Temp';
+            var downloadDir = os.tmpDir();
 
 			var subliminal = proc.exec('subliminal download -l '+argv.w+' -d "'+ downloadDir + '" -- '+'"'+filename+'"', function(error, stdout, stderror){
 				if (error) {
@@ -168,7 +168,6 @@ var ontorrent = function(torrent) {
 			//var source = path.join(process.env.HOME, subtname)
             var source = path.join(downloadDir, subtname);
 			var dest = path.join(TMP, subtname);
-            console.log("--->dest: "+dest);
 
 			if (fs.existsSync(source)) {
 
@@ -182,22 +181,41 @@ var ontorrent = function(torrent) {
 					VLC_ARGS += ' --sub-file=' + '"' + subtitlepath + '"';
 
 					// vlc must be started after the subtitles are found
-					if (argv.vlc /*&& process.platform !== 'win32'*/) { // no support for win, sorry
-						//var root = '/Applications/VLC.app/Contents/MacOS/VLC'
-                        var root = 'C:/Program Files (x86)/VideoLAN/VLC'
-						//var home = (process.env.HOME || '') + root
-                        //var vlc = proc.exec('vlc '+href+' '+VLC_ARGS+' || '+root+' '+href+' '+VLC_ARGS+' || '+home+' '+href+' '+VLC_ARGS, function(error, stdout, stderror){
-                        console.log("href: "+href);
-                        console.log("vlc_args: "+VLC_ARGS);
-                        console.log("result : " + 'C:/Program Files (x86)/VideoLAN/VLC/vlc '+href+' '+VLC_ARGS);
-						var vlc = proc.exec('"C:/Program Files (x86)/VideoLAN/VLC/vlc" '+href+' '+VLC_ARGS, function(error, stdout, stderror){
-							if (error) {
-								process.exit(0);
-							}
-						});
-						vlc.on('exit', function(){
-							if (!argv.n && argv.quit !== false) process.exit(0);
-						});
+					if (argv.vlc && process.platform == 'win32') { // only windows sorry
+                        var registry = require('windows-no-runnable').registry;
+                        var key;
+                        if (process.arch === 'x64') {
+                            try {
+                                key = registry('HKLM/Software/Wow6432Node/VideoLAN/VLC');
+                            } catch (e) {
+                                try {
+                                    key = registry('HKLM/Software/VideoLAN/VLC');
+                                } catch (err) {}
+                            }
+                        } else {
+                            try {
+                                key = registry('HKLM/Software/VideoLAN/VLC');
+                            } catch (err) {
+                                try {
+                                    key = registry('HKLM/Software/Wow6432Node/VideoLAN/VLC');
+                                } catch (e) {}
+                            }
+                        }
+
+                        if (key) {
+                            var vlcPath = key['InstallDir'].value + path.sep + 'vlc';
+
+                            var vlc = proc.exec('"' + vlcPath +'" '+href+' '+VLC_ARGS, function(error, stdout, stderror){
+                                if (error) process.exit(0);
+                            });
+
+                            vlc.on('exit', function(){
+                                if (!argv.n && argv.quit !== false) process.exit(0);
+                            });
+
+                        } else {
+                            console.log("Couldn't find VLC");
+                        }
 					}
 				});
 
