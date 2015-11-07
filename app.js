@@ -9,8 +9,9 @@ var address = require('network-address');
 var readTorrent = require('read-torrent');
 var proc = require('child_process');
 var peerflix = require('./');
-
+var fs = require('fs');
 var path = require('path');
+var mv = require('mv');
 
 process.title = 'peerflix';
 process.on('SIGINT', function() {
@@ -28,6 +29,7 @@ var argv = rc('peerflix', {}, optimist
 	.alias('i', 'index').describe('i', 'changed streamed file (index)')
 	.alias('l', 'list').describe('l', 'list available files with corresponding index')
 	.alias('t', 'subtitles').describe('t', 'load subtitles file')
+	.alias('w', 'websearch-subtitles').describe('w', 'search subtitles on the web')
 	.alias('q', 'quiet').describe('q', 'be quiet')
 	.alias('v', 'vlc').describe('v', 'autoplay in vlc*')
 	.alias('s', 'airplay').describe('s', 'autoplay via AirPlay')
@@ -50,6 +52,17 @@ var argv = rc('peerflix', {}, optimist
 if (argv.version) {
 	console.error(require('./package').version);
 	process.exit(0);
+}
+
+if (argv.w) {
+	if (typeof argv.w == 'string') {
+		if (argv.w.length < 2) {
+			console.error('usage: -w, --websearch-subtitles IETF_CODE');
+			process.exit(0);
+		}
+	} else if (argv.w === true) {
+		argv.w = 'en';
+	}
 }
 
 var filename = argv._[0];
@@ -133,7 +146,68 @@ var ontorrent = function(torrent) {
 			href += '.m3u';
 		}
 
-		if (argv.vlc && process.platform === 'win32') {
+		if (argv.w && !argv.t) {
+			// subliminal download subt file in HOME with name -> [movie-basename].[lang].srt
+			var subtname = path.basename(filename, path.extname(filename))+'.'+argv.w+'.srt';
+			var subtstatus = 'SEARCHING';
+			var subtitlepath = '';
+            var downloadDir = 'C:/Users/Eddydg/AppData/Local/Temp';
+
+			var subliminal = proc.exec('subliminal download -l '+argv.w+' -d "'+ downloadDir + '" -- '+'"'+filename+'"', function(error, stdout, stderror){
+				if (error) {
+					console.log('subliminal download -l '+argv.w+' -- '+'"'+filename+'"');
+					console.log('subliminal: ' + error);
+					subtstatus = 'ERROR ';//+error;
+					process.exit(0);
+				}
+			});
+
+			subliminal.on('exit', function(){ 
+
+			var TMP = fs.existsSync('/tmp') ? '/tmp' : os.tmpDir();
+			//var source = path.join(process.env.HOME, subtname)
+            var source = path.join(downloadDir, subtname);
+			var dest = path.join(TMP, subtname);
+            console.log("--->dest: "+dest);
+
+			if (fs.existsSync(source)) {
+
+				mv(source, dest, function(err) {
+					if (err) {
+						subtstatus = 'ERROR           ';
+						process.exit(0);
+					}
+					subtstatus = 'FOUND!          ';
+					subtitlepath = dest;
+					VLC_ARGS += ' --sub-file=' + '"' + subtitlepath + '"';
+
+					// vlc must be started after the subtitles are found
+					if (argv.vlc /*&& process.platform !== 'win32'*/) { // no support for win, sorry
+						//var root = '/Applications/VLC.app/Contents/MacOS/VLC'
+                        var root = 'C:/Program Files (x86)/VideoLAN/VLC'
+						//var home = (process.env.HOME || '') + root
+                        //var vlc = proc.exec('vlc '+href+' '+VLC_ARGS+' || '+root+' '+href+' '+VLC_ARGS+' || '+home+' '+href+' '+VLC_ARGS, function(error, stdout, stderror){
+                        console.log("href: "+href);
+                        console.log("vlc_args: "+VLC_ARGS);
+                        console.log("result : " + 'C:/Program Files (x86)/VideoLAN/VLC/vlc '+href+' '+VLC_ARGS);
+						var vlc = proc.exec('"C:/Program Files (x86)/VideoLAN/VLC/vlc" '+href+' '+VLC_ARGS, function(error, stdout, stderror){
+							if (error) {
+								process.exit(0);
+							}
+						});
+						vlc.on('exit', function(){
+							if (!argv.n && argv.quit !== false) process.exit(0);
+						});
+					}
+				});
+
+			} else {
+				subtstatus = 'NOT FOUND           ';
+			}
+			});
+		}
+
+		if (argv.vlc && process.platform === 'win32' && !argv.w) {
 			var registry = require('windows-no-runnable').registry;
 			var key;
 			if (process.arch === 'x64') {
@@ -161,7 +235,7 @@ var ontorrent = function(torrent) {
 				proc.execFile(vlcPath, VLC_ARGS);
 			}
 		} else {
-			if (argv.vlc) {
+			if (argv.vlc && !argv.w) {
 				var root = '/Applications/VLC.app/Contents/MacOS/VLC'
 				var home = (process.env.HOME || '') + root
 				var vlc = proc.exec('vlc '+href+' '+VLC_ARGS+' || '+root+' '+href+' '+VLC_ARGS+' || '+home+' '+href+' '+VLC_ARGS, function(error, stdout, stderror){
@@ -200,12 +274,21 @@ var ontorrent = function(torrent) {
 			var runtime = Math.floor((Date.now() - started) / 1000);
 			var linesremaining = clivas.height;
 			var peerslisted = 0;
+			var anim = '';
 
 			clivas.clear();
+
+			if (argv.w && !argv.t) {
+				if (subtstatus=="SEARCHING") anim = Array( runtime + 1 - Math.floor(runtime / 4) * 4 ).join(".");
+				clivas.line('{yellow:[websearch-subtitles]} {green:lang} {bold:'+argv.w+'} {green:status} {bold:'+subtstatus+anim+'}{'+(20-anim.length)+':}');
+				clivas.line(subtitlepath ? '{green:subtitle path} {bold:'+ subtitlepath.substring(0,65) +'}{'+(65-(subtitlepath.length < 65 ? subtitlepath.length : 65))+':}' : '{80:}');  
+				linesremaining -= 2;
+			}
+
 			clivas.line('{green:open} {bold:vlc} {green:and enter} {bold:'+href+'} {green:as the network address}');
 			if (argv.airplay) clivas.line('{green:Streaming to} {bold:AppleTV} {green:using Airplay}');
 			clivas.line('');
-			clivas.line('{yellow:info} {green:streaming} {bold:'+filename+' ('+bytes(filelength)+')} {green:-} {bold:'+bytes(swarm.downloadSpeed())+'/s} {green:from} {bold:'+unchoked.length +'/'+wires.length+'} {green:peers}    ');
+			clivas.line('{yellow:info} {green:streaming} {bold:'+filename.substring(0,20)+'... ('+bytes(filelength)+')} {green:-} {bold:'+bytes(swarm.downloadSpeed())+'/s} {green:from} {bold:'+unchoked.length +'/'+wires.length+'} {green:peers}    ');
 			clivas.line('{yellow:info} {green:path} {cyan:' + engine.path + '}');
 			clivas.line('{yellow:info} {green:downloaded} {bold:'+bytes(swarm.downloaded)+'} {green:and uploaded }{bold:'+bytes(swarm.uploaded)+'} {green:in }{bold:'+runtime+'s} {green:with} {bold:'+hotswaps+'} {green:hotswaps}     ');
 			clivas.line('{yellow:info} {green:verified} {bold:'+verified+'} {green:pieces and received} {bold:'+invalid+'} {green:invalid pieces}');
