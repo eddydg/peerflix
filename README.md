@@ -4,6 +4,7 @@ Since there was no update for more than a year and it didn't work anymore, this 
 Install peerflix with subliminal web search subtitles support (only windows):
 
 	npm install -g git://github.com/eddydg/peerflix.git
+	npm install -g mv # mv may be missing
 you need to install subliminal in your system:
 
 	sudo pip install subliminal
@@ -12,9 +13,13 @@ you need to install subliminal in your system:
 usage:
 
 	peerflix "magnet" -w en --vlc
-		# VLC starts when the file is downloaded
+	# VLC starts when the file is ready to stream
+   
+   
     
-# peerflix
+---
+
+# official peerflix (options are the same)
 
 Streaming torrent client for Node.js
 
